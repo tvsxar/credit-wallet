@@ -1,9 +1,3 @@
-CREATE TABLE users(
-    id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    email TEXT UNIQUE NOT NULL CHECK (LENGTH(TRIM(email)) > 0),
-    password_hash TEXT NOT NULL CHECK (LENGTH(TRIM(password_hash)) > 0)
-);
-
 CREATE TABLE products(
     id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     sku TEXT NOT NULL UNIQUE CHECK (LENGTH(TRIM(sku)) > 0),
@@ -15,12 +9,12 @@ CREATE TABLE products(
 CREATE TABLE orders(
     id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     product_id INT NOT NULL,
-    user_id INT NOT NULL,
+    user_id TEXT NOT NULL,
     amount_cents INT NOT NULL CHECK (amount_cents > 0),
     credits INT NOT NULL CHECK (credits > 0),
     status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'cancelled', 'paid', 'expired')),
     FOREIGN KEY (product_id) REFERENCES products(id),
-    FOREIGN KEY (user_id) REFERENCES users(id)
+    FOREIGN KEY (user_id) REFERENCES "user"(id)
 );
 
 CREATE TABLE payments(
@@ -34,12 +28,12 @@ CREATE TABLE payments(
 
 CREATE TABLE wallet_transactions(
     id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    user_id INT NOT NULL,
+    user_id TEXT NOT NULL,
     order_id INT UNIQUE,
     credits INT NOT NULL CHECK (credits > 0),
     type TEXT NOT NULL CHECK (type IN ('IN', 'OUT')),
     occurred_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    FOREIGN KEY (user_id) REFERENCES users(id),
+    FOREIGN KEY (user_id) REFERENCES "user"(id),
     FOREIGN KEY (order_id) REFERENCES orders(id),
     CHECK (
     (type = 'IN' AND order_id IS NOT NULL)
