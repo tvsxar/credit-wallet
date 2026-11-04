@@ -19,9 +19,9 @@ export async function createNewOrder(
 
     if (!userId) return res.status(401).json({ message: "Not authorized" });
 
-    const order = await createOrder(productId, userId);
+    const result = await createOrder(productId, userId);
 
-    return res.status(201).json({ order });
+    return res.status(201).json(result);
   } catch (error) {
     next(error);
   }
