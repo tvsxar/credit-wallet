@@ -5,6 +5,8 @@ import { toNodeHandler } from "better-auth/node";
 import { auth } from "./lib/auth.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import productRouter from "./routes/product.routes.js";
+import orderRouter from "./routes/order.routes.js";
+import webhookRouter from "./routes/webhook.routes.js";
 
 const app = express();
 
@@ -15,9 +17,12 @@ app.use(
   }),
 );
 app.all("/api/auth/*splat", toNodeHandler(auth));
+app.use("/api/webhooks", webhookRouter);
 app.use(express.json());
 
 app.use("/api/products", productRouter);
+app.use("/api/orders", orderRouter);
+
 app.get("/api/health", (req, res) => {
   res.status(200).json({ status: "ok" });
 });
