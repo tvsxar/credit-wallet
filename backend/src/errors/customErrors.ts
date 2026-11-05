@@ -11,3 +11,9 @@ export class WelcomeOfferUnavailableError extends AppError {
     super("Welcome offer is no longer available", 409);
   }
 }
+
+export class BadRequestError extends AppError {
+  constructor(message: string) {
+    super(message, 400);
+  }
+}

@@ -26,3 +26,12 @@ export async function getUserCredits(userId: string): Promise<number> {
 
   return response.rows[0].credits;
 }
+
+export async function getUserTransactions(userId: string, limit: number, offset: number) {
+  const response = await pool.query(
+    `SELECT * FROM wallet_transactions WHERE user_id = $1 ORDER BY occurred_at DESC, id DESC LIMIT $2 OFFSET $3`,
+    [userId, limit, offset],
+  );
+
+  return response.rows;
+}
