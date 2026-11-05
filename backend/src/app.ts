@@ -7,6 +7,7 @@ import { errorHandler } from "./middleware/errorHandler.js";
 import productRouter from "./routes/product.routes.js";
 import orderRouter from "./routes/order.routes.js";
 import webhookRouter from "./routes/webhook.routes.js";
+import walletRouter from "./routes/wallet.routes.js";
 
 const app = express();
 
@@ -22,6 +23,7 @@ app.use(express.json());
 
 app.use("/api/products", productRouter);
 app.use("/api/orders", orderRouter);
+app.use("/api/wallet", walletRouter);
 
 app.get("/api/health", (req, res) => {
   res.status(200).json({ status: "ok" });
