@@ -59,11 +59,49 @@ export async function processSuccessfulPayment(
       throw new Error("Invalid order status");
     }
 
-    await updatePaymentStatus(client, payment.id);
+    await updatePaymentStatus(client, payment.id, "succeeded");
 
-    await updateOrderStatus(client, order.id);
+    await updateOrderStatus(client, order.id, "paid");
 
     await addCreditsToUser(client, order.user_id, order.id, order.credits);
+
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function processExpiredPayment(session: Stripe.Checkout.Session) {
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const payment = await getPaymentBySessionId(client, session.id);
+
+    if (!payment) {
+      throw new Error("Payment not found");
+    }
+
+    if (payment.status !== "pending") {
+      await client.query("ROLLBACK");
+      return;
+    }
+
+    const order = await getOrderById(client, payment.order_id);
+
+    if (!order) {
+      throw new Error("Order not found");
+    }
+
+    if (order.status === "pending") {
+      await updateOrderStatus(client, order.id, "expired");
+    }
+
+    await updatePaymentStatus(client, payment.id, "failed");
 
     await client.query("COMMIT");
   } catch (error) {

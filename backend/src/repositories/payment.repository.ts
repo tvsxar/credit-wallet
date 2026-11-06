@@ -29,8 +29,10 @@ export async function getPaymentBySessionId(
 export async function updatePaymentStatus(
   client: PoolClient,
   paymentId: number,
+  status: "succeeded" | "failed",
 ) {
-  await client.query("UPDATE payments SET status = 'succeeded' WHERE id = $1", [
+  await client.query("UPDATE payments SET status = $2 WHERE id = $1", [
     paymentId,
+    status,
   ]);
 }
