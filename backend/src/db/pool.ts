@@ -1,6 +1,9 @@
 import { Pool } from "pg";
 
-const connectionString = process.env.PG_STRING;
+const connectionString =
+  process.env.NODE_ENV === "test"
+    ? process.env.TEST_PG_STRING
+    : process.env.PG_STRING;
 
 if (!connectionString) {
   throw new Error("The connection string is missing!");

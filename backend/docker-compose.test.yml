@@ -1,0 +1,9 @@
+services:
+  test-db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: admin_user
+      POSTGRES_PASSWORD: postgres123
+      POSTGRES_DB: credit_wallet_test
+    ports:
+      - "127.0.0.1:5433:5432"
