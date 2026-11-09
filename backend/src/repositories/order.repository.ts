@@ -51,8 +51,13 @@ export async function getOrderById(client: PoolClient, orderId: number) {
   return response.rows[0];
 }
 
-export async function updateOrderStatus(client: PoolClient, orderId: number) {
-  await client.query("UPDATE orders SET status = 'paid' WHERE id = $1", [
+export async function updateOrderStatus(
+  client: PoolClient,
+  orderId: number,
+  status: "paid" | "expired" | "cancelled",
+) {
+  await client.query("UPDATE orders SET status = $2 WHERE id = $1", [
     orderId,
+    status,
   ]);
 }

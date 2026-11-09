@@ -1,6 +1,9 @@
 import type { Response, Request, NextFunction } from "express";
 import { stripe } from "../lib/stripe.js";
-import { processSuccessfulPayment } from "../services/payment.service.js";
+import {
+  processSuccessfulPayment,
+  processExpiredPayment,
+} from "../services/payment.service.js";
 
 export async function stripeWebhook(
   req: Request,
@@ -38,6 +41,10 @@ export async function stripeWebhook(
       const session = event.data.object;
 
       await processSuccessfulPayment(session);
+    } else if (event.type === "checkout.session.expired") {
+      const session = event.data.object;
+
+      await processExpiredPayment(session);
     }
 
     return res.status(200).json({ message: "Received" });
