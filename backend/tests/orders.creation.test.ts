@@ -16,7 +16,7 @@ import { stripe } from "../src/lib/stripe";
 import type Stripe from "stripe";
 import app from "../src/app";
 
-const userId = "test-user-id";
+let userId: string;
 let productId: number;
 
 vi.mock("../src/middleware/requireAuth.js", () => ({
@@ -55,6 +55,7 @@ describe("Order creation", () => {
   });
 
   beforeEach(async () => {
+    userId = `test-${randomUUID()}`;
     vi.clearAllMocks();
 
     await pool.query(
