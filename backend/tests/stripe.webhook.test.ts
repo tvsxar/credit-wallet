@@ -402,4 +402,91 @@ describe("Stripe webhook", () => {
     expect(payments.rows[0].status).toBe("pending");
     expect(walletTransactions.rows.length).toBe(0);
   });
+
+  test("should rollback payment when credit insertion fails", async () => {
+    await pool.query(
+      `INSERT INTO wallet_transactions (user_id, order_id, credits, type)
+      VALUES ($1, $2, $3, 'IN')`,
+      [userId, orderId, 100],
+    );
+
+    const event = createSuccessEvent();
+    const jsonString = JSON.stringify(event);
+    const signature = stripe.webhooks.generateTestHeaderString({
+      payload: jsonString,
+      secret: process.env.WEBHOOK_SECRET!,
+    });
+
+    const response = await request(app)
+      .post("/api/webhooks/stripe")
+      .set("stripe-signature", signature)
+      .set("Content-Type", "application/json")
+      .send(jsonString);
+
+    expect(response.status).toBe(500);
+
+    const orders = await pool.query("SELECT * FROM orders WHERE id = $1", [
+      orderId,
+    ]);
+    const payments = await pool.query(
+      "SELECT * FROM payments WHERE order_id = $1",
+      [orderId],
+    );
+    const walletTransactions = await pool.query(
+      "SELECT * FROM wallet_transactions WHERE order_id = $1",
+      [orderId],
+    );
+
+    expect(orders.rows[0].status).toBe("pending");
+    expect(payments.rows[0].status).toBe("pending");
+    expect(walletTransactions.rows.length).toBe(1);
+    expect(walletTransactions.rows[0].user_id).toBe(userId);
+    expect(walletTransactions.rows[0].type).toBe("IN");
+    expect(walletTransactions.rows[0].credits).toBe(100);
+  });
+
+  test("should credit wallet only once for concurrent webhooks", async () => {
+    const event = createSuccessEvent();
+    const jsonString = JSON.stringify(event);
+    const signature = stripe.webhooks.generateTestHeaderString({
+      payload: jsonString,
+      secret: process.env.WEBHOOK_SECRET!,
+    });
+
+    const [firstResponse, secondResponse] = await Promise.all([
+      request(app)
+        .post("/api/webhooks/stripe")
+        .set("stripe-signature", signature)
+        .set("Content-Type", "application/json")
+        .send(jsonString),
+
+      request(app)
+        .post("/api/webhooks/stripe")
+        .set("stripe-signature", signature)
+        .set("Content-Type", "application/json")
+        .send(jsonString),
+    ]);
+
+    expect(firstResponse.status).toBe(200);
+    expect(secondResponse.status).toBe(200);
+
+    const orders = await pool.query("SELECT * FROM orders WHERE id = $1", [
+      orderId,
+    ]);
+    const payments = await pool.query(
+      "SELECT * FROM payments WHERE order_id = $1",
+      [orderId],
+    );
+    const walletTransactions = await pool.query(
+      "SELECT * FROM wallet_transactions WHERE order_id = $1",
+      [orderId],
+    );
+
+    expect(orders.rows[0].status).toBe("paid");
+    expect(payments.rows[0].status).toBe("succeeded");
+    expect(walletTransactions.rows.length).toBe(1);
+    expect(walletTransactions.rows[0].user_id).toBe(userId);
+    expect(walletTransactions.rows[0].type).toBe("IN");
+    expect(walletTransactions.rows[0].credits).toBe(100);
+  });
 });
