@@ -266,4 +266,140 @@ describe("Stripe webhook", () => {
     expect(walletTransactions.rows[0].type).toBe("IN");
     expect(walletTransactions.rows[0].credits).toBe(100);
   });
+
+  test("should reject payment with mismatched amount", async () => {
+    const event = createSuccessEvent();
+    event.data.object.amount_total = 900;
+    const jsonString = JSON.stringify(event);
+    const signature = stripe.webhooks.generateTestHeaderString({
+      payload: jsonString,
+      secret: process.env.WEBHOOK_SECRET!,
+    });
+
+    const response = await request(app)
+      .post("/api/webhooks/stripe")
+      .set("stripe-signature", signature)
+      .set("Content-Type", "application/json")
+      .send(jsonString);
+
+    expect(response.status).toBe(500);
+
+    const orders = await pool.query("SELECT * FROM orders WHERE id = $1", [
+      orderId,
+    ]);
+    const payments = await pool.query(
+      "SELECT * FROM payments WHERE order_id = $1",
+      [orderId],
+    );
+    const walletTransactions = await pool.query(
+      "SELECT * FROM wallet_transactions WHERE order_id = $1",
+      [orderId],
+    );
+
+    expect(orders.rows[0].status).toBe("pending");
+    expect(payments.rows[0].status).toBe("pending");
+    expect(walletTransactions.rows.length).toBe(0);
+  });
+
+  test("should reject payment with invalid currency", async () => {
+    const event = createSuccessEvent();
+    event.data.object.currency = "usd";
+    const jsonString = JSON.stringify(event);
+    const signature = stripe.webhooks.generateTestHeaderString({
+      payload: jsonString,
+      secret: process.env.WEBHOOK_SECRET!,
+    });
+
+    const response = await request(app)
+      .post("/api/webhooks/stripe")
+      .set("stripe-signature", signature)
+      .set("Content-Type", "application/json")
+      .send(jsonString);
+
+    expect(response.status).toBe(500);
+
+    const orders = await pool.query("SELECT * FROM orders WHERE id = $1", [
+      orderId,
+    ]);
+    const payments = await pool.query(
+      "SELECT * FROM payments WHERE order_id = $1",
+      [orderId],
+    );
+    const walletTransactions = await pool.query(
+      "SELECT * FROM wallet_transactions WHERE order_id = $1",
+      [orderId],
+    );
+
+    expect(orders.rows[0].status).toBe("pending");
+    expect(payments.rows[0].status).toBe("pending");
+    expect(walletTransactions.rows.length).toBe(0);
+  });
+
+  test("should reject payment with unpaid status", async () => {
+    const event = createSuccessEvent();
+    event.data.object.payment_status = "unpaid";
+    const jsonString = JSON.stringify(event);
+    const signature = stripe.webhooks.generateTestHeaderString({
+      payload: jsonString,
+      secret: process.env.WEBHOOK_SECRET!,
+    });
+
+    const response = await request(app)
+      .post("/api/webhooks/stripe")
+      .set("stripe-signature", signature)
+      .set("Content-Type", "application/json")
+      .send(jsonString);
+
+    expect(response.status).toBe(500);
+
+    const orders = await pool.query("SELECT * FROM orders WHERE id = $1", [
+      orderId,
+    ]);
+    const payments = await pool.query(
+      "SELECT * FROM payments WHERE order_id = $1",
+      [orderId],
+    );
+    const walletTransactions = await pool.query(
+      "SELECT * FROM wallet_transactions WHERE order_id = $1",
+      [orderId],
+    );
+
+    expect(orders.rows[0].status).toBe("pending");
+    expect(payments.rows[0].status).toBe("pending");
+    expect(walletTransactions.rows.length).toBe(0);
+  });
+
+  test("should reject payment when payment is not found", async () => {
+    const event = createSuccessEvent();
+    event.data.object.id = `cs_test_unknown_${randomUUID()}`;
+    const jsonString = JSON.stringify(event);
+    const signature = stripe.webhooks.generateTestHeaderString({
+      payload: jsonString,
+      secret: process.env.WEBHOOK_SECRET!,
+    });
+
+    const response = await request(app)
+      .post("/api/webhooks/stripe")
+      .set("stripe-signature", signature)
+      .set("Content-Type", "application/json")
+      .send(jsonString);
+
+    expect(response.status).toBe(500);
+
+    const orders = await pool.query("SELECT * FROM orders WHERE id = $1", [
+      orderId,
+    ]);
+    const payments = await pool.query(
+      "SELECT * FROM payments WHERE order_id = $1",
+      [orderId],
+    );
+    const walletTransactions = await pool.query(
+      "SELECT * FROM wallet_transactions WHERE order_id = $1",
+      [orderId],
+    );
+
+    expect(orders.rows[0].status).toBe("pending");
+    expect(payments.rows[0].status).toBe("pending");
+    expect(walletTransactions.rows.length).toBe(0);
+  });
 });
