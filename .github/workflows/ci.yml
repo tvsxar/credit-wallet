@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: admin_user
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: credit_wallet_test
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U admin_user -d credit_wallet_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    defaults:
+      run:
+        working-directory: ./backend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Apply test database migrations
+        env:
+          POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          for migration in db/migrations/*.sql; do
+            docker exec -i "$POSTGRES_CONTAINER" psql -X -v ON_ERROR_STOP=1 \
+              -U admin_user -d credit_wallet_test < "$migration"
+          done
+
+      - name: Run tests
+        env:
+          TEST_PG_STRING: postgresql://admin_user:test_password@127.0.0.1:5433/credit_wallet_test
+          BETTER_AUTH_URL: http://localhost:2111
+          BETTER_AUTH_SECRET: ci-only-better-auth-secret-0123456789
+          STRIPE_SECRET_KEY: sk_test_ci_placeholder
+          WEBHOOK_SECRET: whsec_ci_placeholder
+        run: npm test
+
+      - name: Build backend
+        run: npm run build
+
+      - name: Build Docker image
+        run: docker build -t credit-wallet-backend .
