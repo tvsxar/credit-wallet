@@ -1,0 +1,54 @@
+name: CI
+ 
+on:
+  push:
+    branches: 
+    - main
+  pull_request:
+    branches:
+    - main
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: admin_user
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: credit_wallet_test
+        ports:
+        - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U admin_user -d credit_wallet_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v6
+      with:
+        node-version: 22
+
+    - name: Install backend dependencies
+      working-directory: ./backend
+      run: npm ci
+
+    - name: Run backend tests
+      working-directory: ./backend
+      env:
+        TEST_PG_STRING: postgresql://admin_user:test_password@127.0.0.1:5432/credit_wallet_test
+      run: npm test
+
+    - name: Build backend
+      working-directory: ./backend
+      run: npm run build
+
+    - name: Build docker image
+      run: docker build -t credit-wallet-backend ./backend
