@@ -20,9 +20,9 @@ jobs:
           POSTGRES_PASSWORD: test_password
           POSTGRES_DB: credit_wallet_test
         ports:
-          - 5432:5432
+          - 5433:5432
         options: >-
-          --health-cmd "pg_isready -U admin_user -d credit_wallet_test"
+          --health-cmd "pg_isready -h 127.0.0.1 -U admin_user -d credit_wallet_test"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -30,13 +30,6 @@ jobs:
     defaults:
       run:
         working-directory: ./backend
-
-    env:
-      TEST_PG_STRING: postgresql://admin_user:test_password@127.0.0.1:5432/credit_wallet_test
-      BETTER_AUTH_URL: http://localhost:2111
-      BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
-      STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
-      STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
 
     steps:
       - name: Checkout repository
@@ -52,7 +45,22 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Apply test database migrations
+        env:
+          POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          for migration in db/migrations/*.sql; do
+            docker exec -i "$POSTGRES_CONTAINER" psql -X -v ON_ERROR_STOP=1 \
+              -U admin_user -d credit_wallet_test < "$migration"
+          done
+
       - name: Run tests
+        env:
+          TEST_PG_STRING: postgresql://admin_user:test_password@127.0.0.1:5433/credit_wallet_test
+          BETTER_AUTH_URL: http://localhost:2111
+          BETTER_AUTH_SECRET: ci-only-better-auth-secret-0123456789
+          STRIPE_SECRET_KEY: sk_test_ci_placeholder
+          WEBHOOK_SECRET: whsec_ci_placeholder
         run: npm test
 
       - name: Build backend
