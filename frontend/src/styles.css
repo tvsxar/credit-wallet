@@ -1,0 +1,69 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: Inter, system-ui, -apple-system, sans-serif;
+  --color-ink: #142a24;
+  --color-surface: #f5f7f6;
+  --color-muted: #52655d;
+  --color-line: #dce5e0;
+  --color-accent: #176149;
+  --color-mint: #c8f392;
+}
+
+@layer base {
+  body {
+    @apply bg-surface font-sans text-ink antialiased;
+  }
+
+  #root {
+    @apply flex min-h-svh flex-col;
+  }
+
+  #root > main {
+    @apply flex-1;
+  }
+
+  h1, h2, h3 {
+    @apply font-bold tracking-[-.035em];
+  }
+
+  h1 {
+    @apply text-[clamp(2.2rem,5vw,3.5rem)] leading-[1.05];
+  }
+
+  h2 {
+    @apply text-[1.45rem];
+  }
+
+  p {
+    @apply leading-[1.55];
+  }
+
+  button {
+    @apply cursor-pointer disabled:cursor-default disabled:opacity-55;
+  }
+
+  :focus-visible {
+    @apply outline-3 outline-offset-3 outline-[#218663];
+  }
+
+  label {
+    @apply grid gap-[.4rem] text-[.88rem] font-[650];
+  }
+
+  input {
+    @apply min-h-[46px] w-full rounded-[10px] border border-[#bccdc4] bg-white px-[.8rem] py-[.65rem] text-base font-normal text-ink;
+  }
+
+  th, td {
+    @apply border-b border-line px-[clamp(.55rem,2vw,1.15rem)] py-[.8rem] last:text-right;
+  }
+
+  th {
+    @apply font-semibold text-muted;
+  }
+}
+
+@utility button-secondary {
+  @apply min-h-[42px] rounded-[10px] border border-line bg-white px-4 py-[.65rem] text-[.88rem] font-[650] enabled:hover:border-[#a5c8b6] enabled:hover:bg-[#eaf4ee];
+}
