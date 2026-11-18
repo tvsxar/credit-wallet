@@ -1,5 +1,8 @@
 import type { Product, Session, Transaction } from "../types/api";
 
+const apiOrigin = (import.meta.env.VITE_API_URL?.trim() || "http://localhost:2111")
+  .replace(/\/+$/, "");
+
 export class ApiError extends Error {
   constructor(public readonly status: number, message: string) {
     super(message);
@@ -9,7 +12,7 @@ export class ApiError extends Error {
 async function request<T>(path: string, method: "GET" | "POST", body?: object): Promise<T> {
   let response: Response;
   try {
-    response = await fetch("/api" + path, {
+    response = await fetch(apiOrigin + "/api" + path, {
       method,
       credentials: "include",
       cache: "no-store",

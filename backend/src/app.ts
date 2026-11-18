@@ -8,12 +8,13 @@ import productRouter from "./routes/product.routes.js";
 import orderRouter from "./routes/order.routes.js";
 import webhookRouter from "./routes/webhook.routes.js";
 import walletRouter from "./routes/wallet.routes.js";
+import { clientOrigin } from "./config/clientOrigin.js";
 
 const app = express();
 
 app.use(
   cors({
-    origin: process.env.CLIENT_URL || "http://localhost:5173",
+    origin: clientOrigin,
     credentials: true,
   }),
 );

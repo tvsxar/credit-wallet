@@ -21,7 +21,7 @@ export function AuthForm({ onSession }: { onSession: (session: Session) => void 
       if (register) await api.signUp(String(fields.get("name")).trim(), email, password);
       else await api.signIn(email, password);
       const session = await api.session();
-      if (!session) throw new Error("No session was saved. Open the app at localhost:5173 and check that cookies are enabled.");
+      if (!session) throw new Error("No session was saved. Check that your browser allows session cookies for this app.");
       onSession(session);
     } catch (error) {
       setError(errorMessage(error));
