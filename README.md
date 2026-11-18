@@ -1,119 +1,287 @@
 # Credit Wallet — Stripe Payment Lab
 
-A full-stack demo for purchasing app credits with Stripe Checkout and tracking them in a personal wallet. The project focuses on payment processing, transactional credit fulfillment, and a balance derived from a PostgreSQL ledger.
+A full-stack credit wallet application built with React, TypeScript, Node.js, Express, PostgreSQL, Better Auth, and Stripe Checkout.
+
+Credit Wallet lets users purchase credit packs, check their balance, and view their transaction history through a simple interface.
+
+The project focuses on backend architecture, relational database design, payment processing, and production-oriented engineering practices, including automated testing, containerization, CI, and deployment.
 
 ## Live Demo
 
-**[Open Credit Wallet](https://credit-wallet.vercel.app/)** · **[API health](https://credit-wallet.onrender.com/api/health)**
+**Live Application:** [Credit Wallet](https://credit-wallet.vercel.app/)
 
 ## Features
 
-- Create an account and sign in with an email and password.
-- Browse credit packs, including a welcome offer available before the first paid order.
-- Buy credits through hosted Stripe Checkout.
-- See the current balance and browse paginated wallet activity.
-- Return from checkout and refresh the wallet while the payment confirmation is processed.
+- Register and sign in using an email and password
+- Browse available credit packs
+- Access a welcome offer before the first paid order
+- Purchase credits through Stripe Checkout
+- Track the current credit balance
+- View paginated wallet transaction history
+- Process successful and expired checkout sessions
+- Prevent duplicate credits when Stripe retries an event
+- Responsive user interface
+
+## Tech Stack
+
+**Frontend**
+- React
+- TypeScript
+- Vite
+- Tailwind CSS
+
+**Backend**
+- Node.js
+- Express.js
+- TypeScript
+- Better Auth
+- Stripe Checkout
+- PostgreSQL
+- node-postgres
+
+**Testing**
+- Vitest
+- Supertest
+
+**DevOps & Deployment**
+- Docker
+- Docker Compose
+- GitHub Actions
+- Vercel
+- Render
+- Neon PostgreSQL
 
 ## Architecture
 
-```mermaid
-flowchart LR
-    UI["React frontend · Vercel"] -->|HTTPS REST and session cookie| API["Express API · Render"]
-    API -->|Orders, payments, ledger| DB["PostgreSQL · Neon"]
-    API -->|Creates a Checkout Session| Stripe["Stripe Checkout"]
-    UI -->|Opens hosted checkout| Stripe
-    Stripe -->|Signed webhooks| API
+Credit Wallet uses a separated frontend/backend architecture with a relational PostgreSQL database.
+
+```text
+┌───────────────────────────┐
+│          Browser          │
+└─────────────┬─────────────┘
+              │
+              ▼
+┌───────────────────────────┐
+│     React + TypeScript    │
+│           Vercel          │
+└─────────────┬─────────────┘
+              │ HTTPS / REST API
+              ▼
+┌───────────────────────────┐     ┌───────────────────────┐
+│   Node.js + Express API   │◄────│    Stripe Checkout    │
+│           Render          │     │    Signed Webhooks    │
+├───────────────────────────┤     └───────────────────────┘
+│       Business Logic      │
+│       node-postgres       │
+└─────────────┬─────────────┘
+              │
+              ▼
+┌───────────────────────────┐
+│      Neon PostgreSQL      │
+└───────────────────────────┘
 ```
 
-| Layer | Technologies |
-| --- | --- |
-| Frontend | React, TypeScript, Vite, Tailwind CSS |
-| Backend | Node.js, Express, TypeScript, Better Auth |
-| Data | PostgreSQL, SQL migrations, `pg` |
-| Payments | Stripe Checkout, signed webhooks |
-| Testing and delivery | Vitest, Supertest, Docker, GitHub Actions |
+The frontend communicates with the backend through a REST API. Better Auth manages user sessions.
 
-## How a purchase becomes credits
+The backend reads the product price and credit amount from the database, creates an order, and opens a Stripe Checkout session. After payment, Stripe sends a signed webhook. The backend verifies the signature, payment status, currency, and amount before updating the order, payment, and wallet in a single database transaction.
 
-1. The browser submits a product ID. The API checks eligibility, reads the price and credit amount from PostgreSQL, creates an order, and opens a Stripe Checkout session.
-2. Stripe sends a signed `checkout.session.completed` event. The API verifies the signature, checks that the session is paid in EUR, and matches the amount to the stored payment.
-3. In one database transaction, the API marks the payment and order as paid and adds an `IN` entry to the wallet ledger. Repeated delivery does not add duplicate credits. The ledger enforces a unique entry per credited order.
-4. The wallet reads the updated balance and activity from the API. The browser's return from Stripe only tells the UI to refresh. If Stripe reports that a pending session expired, the API marks the order expired and the payment failed.
+## Database Design
 
-The balance is computed from ledger entries as **credits in − credits out**. Each entry records the user, amount, direction, timestamp, and associated order when applicable. This makes the balance traceable to the activity the user sees.
+Credit Wallet uses a relational database designed around products, orders, payments, and wallet transactions.
 
-## API
+**Products**
+- Unique product identifier and SKU
+- Product name
+- Price in cents
+- Number of credits
 
-| Method and route | Purpose |
-| --- | --- |
-| `/api/auth/*` | Better Auth routes for registration, session management, and logout |
-| `GET /api/products` | List credit packs available to the signed-in user |
-| `POST /api/orders` | Create an order from a product ID and return its Checkout URL |
-| `GET /api/wallet/balance` | Read the current credit balance |
-| `GET /api/wallet/transactions?page=1` | Read a page of wallet activity |
-| `POST /api/webhooks/stripe` | Receive signed Stripe events |
-| `GET /api/health` | Check whether the API is responding |
+**Orders**
+- User and product references
+- Purchase amount and credits at the time of ordering
+- Order status
 
-## Testing and CI
+**Payments**
+- Order reference
+- Unique Stripe Checkout session identifier
+- Payment amount and status
 
-[GitHub Actions](.github/workflows/ci.yml) runs on pull requests targeting `main` and pushes to `main`. The two jobs run independently.
+**Wallet Transactions**
+- User reference
+- Order reference for purchased credits
+- Transaction type (IN or OUT)
+- Credit amount and timestamp
 
-| Job | Checks |
-| --- | --- |
-| Backend | Install dependencies, migrate a separate PostgreSQL 17 database, run Vitest and Supertest, compile TypeScript, and build the Docker image |
-| Frontend | Install dependencies, type-check, and build with Vite |
+### Relationships
 
-Backend integration tests cover order creation and validation, Stripe webhook processing, and payment transaction safety. [Test files](backend/tests/)
+```text
+                ┌─────────────────────┐
+                │       products      │
+                └──────────┬──────────┘
+                           │ 1:N
+                           ▼
+                ┌─────────────────────┐
+                │        orders       │
+                └───┬─────────────┬───┘
+                    │ 1:N         │ 1:0..1
+                    ▼             ▼
+           ┌────────────────┐  ┌───────────────────────┐
+           │    payments    │  │  wallet_transactions  │
+           └────────────────┘  └───────────────────────┘
+```
 
-## Run locally
+Each order belongs to a user and references a product. A paid order can have one credit entry in the wallet ledger. PostgreSQL enforces this constraint so Stripe retries cannot add a duplicate entry.
 
-Use Node.js 22.12+ and PostgreSQL. Create a local database and apply the [SQL migrations](backend/db/migrations/) in filename order. The catalog reads from the `products` table. Add product records to your local development database to try checkout.
+### Balance Calculation
 
-Create `backend/.env` with your local values:
+Credit balances are calculated from recorded wallet transactions.
 
-| Variable | Local value |
-| --- | --- |
-| `PG_STRING` | Connection string for the development database |
-| `BETTER_AUTH_URL` | `http://localhost:2111` |
-| `BETTER_AUTH_SECRET` | A strong secret for your local environment |
-| `CLIENT_URL` | `http://localhost:5173` |
-| `STRIPE_SECRET_KEY` | Stripe test-mode secret key |
-| `WEBHOOK_SECRET` | Signing secret printed by the local Stripe listener when testing payments |
+```text
+Current Balance = Total IN - Total OUT
+```
 
-Run the backend and frontend in separate terminals from the repository root:
+For example:
 
-```sh
+```text
+First purchase    +100
+Second purchase   +100
+----------------------
+Balance            200
+```
+
+## Testing
+
+Backend integration tests use **Vitest** and **Supertest** with a dedicated PostgreSQL test database.
+
+The tests cover:
+
+- Database connectivity
+- Order creation and validation
+- Successful and expired Stripe Checkout events
+- Duplicate webhook delivery and payment transaction safety
+
+The frontend is checked through TypeScript validation and a Vite production build.
+
+## Docker
+
+The backend has a Dockerfile for building the Express API image.
+
+Docker Compose provides a PostgreSQL test database:
+
+```bash
+cd backend
+docker compose -f docker-compose.test.yml up -d
+```
+
+Set `TEST_DB_PASSWORD` before starting the container. Apply the SQL migrations to the test database and set `TEST_PG_STRING` before running `npm test`.
+
+## CI
+
+Credit Wallet uses **GitHub Actions** for continuous integration. Pushes to `main` and pull requests targeting `main` trigger two independent jobs.
+
+```text
+                  Push / Pull Request
+                           │
+                           ▼
+                 ┌───────────────────┐
+                 │   GitHub Actions  │
+                 └─────────┬─────────┘
+            ┌──────────────┴──────────────┐
+            │                             │
+            ▼                             ▼
+  ┌───────────────────┐         ┌───────────────────┐
+  │     Backend CI    │         │    Frontend CI    │
+  ├───────────────────┤         ├───────────────────┤
+  │   SQL Migrations  │         │  TypeScript Check │
+  │   Backend Tests   │         │  Production Build │
+  │  TypeScript Build │         └───────────────────┘
+  │    Docker Build   │
+  └───────────────────┘
+```
+
+## Deployment
+
+**Frontend**
+
+The React application is built with Vite and deployed on Vercel. Set `VITE_API_URL` to the public API origin before building. Vercel rewrites `/payment/success` and `/payment/cancel` to `/index.html` so React can handle the return from Stripe.
+
+**Backend**
+
+The Express API runs on Render. Set `CLIENT_URL` to the frontend origin and `BETTER_AUTH_URL` to the API origin. Configure Stripe to deliver `checkout.session.completed` and `checkout.session.expired` to `/api/webhooks/stripe`, and set `WEBHOOK_SECRET` to the deployed endpoint's signing secret.
+
+**Database**
+
+PostgreSQL is hosted on Neon. Automated tests use a separate database.
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js 22.12+ and npm
+- PostgreSQL
+- Stripe test-mode credentials for checkout
+- Docker and Docker Compose for the PostgreSQL test service
+
+### Manual Development
+
+Clone the repository:
+
+```bash
+git clone https://github.com/tvsxar/credit-wallet.git
+cd credit-wallet
+```
+
+Create a development database and apply the [SQL migrations](backend/db/migrations/) in filename order. Add product records to the development database to try checkout.
+
+Configure `backend/.env`:
+
+```env
+PG_STRING=postgresql://USER:PASSWORD@localhost:5432/credit_wallet
+BETTER_AUTH_URL=http://localhost:2111
+BETTER_AUTH_SECRET=your_local_auth_secret
+CLIENT_URL=http://localhost:5173
+STRIPE_SECRET_KEY=sk_test_...
+WEBHOOK_SECRET=whsec_...
+```
+
+For local payment testing, run the Stripe listener and use the signing secret it prints as `WEBHOOK_SECRET`:
+
+```bash
+stripe listen --forward-to localhost:2111/api/webhooks/stripe
+```
+
+Install backend dependencies and start the API:
+
+```bash
 cd backend
 npm ci
 npm run dev
 ```
 
-```sh
+Install frontend dependencies in another terminal:
+
+```bash
 cd frontend
 npm ci
 npm run dev
 ```
 
-Open http://localhost:5173. For local payment testing, run `stripe listen --forward-to localhost:2111/api/webhooks/stripe` and set `WEBHOOK_SECRET` before starting the backend.
-
-## Deployment
-
-The frontend runs on **Vercel**, the API runs on **Render**, and PostgreSQL is hosted on **Neon**.
-
-- **Vercel:** Set the root directory to `frontend`, select the Vite preset, and publish `dist` after running `npm run build`. Set `VITE_API_URL` to the Render API origin before building. In **CDN → Project-level Routing**, rewrite `/payment/success` and `/payment/cancel` to `/index.html`.
-- **Render:** Set `CLIENT_URL` to the Vercel frontend origin and `BETTER_AUTH_URL` to the Render API origin. Use the other backend variables from the local setup with their deployment values. Set both origins without paths.
-- **Stripe:** Send `checkout.session.completed` and `checkout.session.expired` to the deployed API at `/api/webhooks/stripe`. Set `WEBHOOK_SECRET` to that endpoint's signing secret.
-
-The default Vercel and Render domains are cross-site. For browsers that block third-party session cookies, use HTTPS subdomains of a shared custom domain.
+Open http://localhost:5173. The frontend uses http://localhost:2111 by default. Set `VITE_API_URL` without the `/api` suffix to use a different API origin.
 
 ## Project Structure
 
 ```text
 credit-wallet/
-├── .github/workflows/ci.yml
+├── .github/
+│   └── workflows/
+│       └── ci.yml
 ├── backend/
-│   ├── db/migrations/
+│   ├── db/
+│   │   └── migrations/
 │   ├── src/
+│   │   ├── controllers/
+│   │   ├── repositories/
+│   │   ├── routes/
+│   │   └── services/
 │   ├── tests/
 │   ├── Dockerfile
 │   └── docker-compose.test.yml
@@ -126,8 +294,22 @@ credit-wallet/
 └── README.md
 ```
 
+## API
+
+Main API resources:
+
+```text
+/api/auth/*                   Registration, sign-in, and sessions
+GET  /api/products            Available credit packs
+POST /api/orders              Create an order and open Stripe Checkout
+GET  /api/wallet/balance      Current credit balance
+GET  /api/wallet/transactions Paginated wallet history
+POST /api/webhooks/stripe     Stripe payment events
+GET  /api/health              Service health check
+```
+
 ## Author
 
 **Taras Poiatsyka**
 
-[GitHub](https://github.com/tvsxar) · [Portfolio](https://taras-portfolio-theta.vercel.app)
+[GitHub](https://github.com/tvsxar) | [Portfolio](https://taras-portfolio-theta.vercel.app)
